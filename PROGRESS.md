@@ -86,7 +86,16 @@
 - [x] 512MB 서버에서 빌드하지 않음(러너 빌드), systemd 유닛/ADMIN_SLUG 는 CI가 건드리지 않음(비밀 유지)
 - [x] `.gitignore` 에 `.claude/` 추가(개인 저장소 push 시 로컬 도구 제외)
 - [x] `DEPLOY.md` 13번 섹션: 배포키 생성/서버 등록, NOPASSWD sudo, git init/push, GitHub Secrets(`LIGHTSAIL_HOST/USER/SSH_KEY`)
-- **미완료(사용자 실행)**: GitHub 저장소 생성·push, Secrets 등록, 배포키 서버 등록 → 첫 자동 배포 확인
+- [x] GitHub 저장소 생성 & 최초 push 완료 (**public** 저장소)
+  - 보안 감사 클린: 추적 파일에 `.env`/`node_modules`/`.claude`/`.next` 없음, 하드코딩 비밀값 없음(`ADMIN_SLUG`은 서버 systemd에만, SSH키는 GitHub Secrets에만). public이어도 안전 — 단 `ADMIN_SLUG`는 길고 랜덤 유지 필수.
+- **미완료(사용자 실행)**: GitHub Secrets 등록, 배포키 서버 authorized_keys 등록 → 첫 자동 배포 확인
+
+### 9. ADMIN_SLUG 를 GitHub Secret 으로 관리 (CI가 서버 .env 기록)
+- [x] systemd 유닛: `Environment=ADMIN_SLUG` 제거 → `EnvironmentFile=-/home/ubuntu/skgt-vote/.env` 로 로드(파일 없으면 기본 "dev")
+- [x] 워크플로우: rsync 후 GitHub Secret `ADMIN_SLUG` 를 파일로 만들어 서버 `.env` 로 scp(명령줄/로그 미노출), 이어서 `npm ci --omit=dev` + restart
+- [x] `.env` 는 .gitignore + rsync 제외 → 저장소 미노출 & 서버 보존
+- [x] DEPLOY.md: Secret 표에 `ADMIN_SLUG` 추가, Step5/6(수동 .env 또는 CI 자동) 갱신
+- **주의**: `socketHandlers.ts` 가 모듈 로드 시점에 `process.env.ADMIN_SLUG` 를 읽으므로 반드시 systemd EnvironmentFile 로 주입(Next .env 자동로드에 의존 X)
 
 ## 🔜 다음 후보 (미착수)
 - [ ] **실제 Lightsail 배포 수행** (수동 DEPLOY 또는 GitHub Actions로) ← 다음 단계

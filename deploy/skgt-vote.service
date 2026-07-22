@@ -7,10 +7,12 @@ Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/skgt-vote
 
-# 프로덕션 환경변수 (ADMIN_SLUG 는 반드시 실제 비밀값으로 교체!)
+# 정적 환경변수
 Environment=NODE_ENV=production
 Environment=PORT=3000
-Environment=ADMIN_SLUG=REPLACE_ME_WITH_SECRET
+# 비밀 환경변수(ADMIN_SLUG 등)는 .env 에서 로드. CI가 GitHub Secret 으로 매 배포 시 갱신.
+# '-' 접두사: 파일이 없어도 서비스는 기동(그 경우 ADMIN_SLUG 기본값 "dev").
+EnvironmentFile=-/home/ubuntu/skgt-vote/.env
 
 # tsx 로 커스텀 서버(server.ts) 직접 구동 (npm/cross-env 불필요)
 ExecStart=/home/ubuntu/skgt-vote/node_modules/.bin/tsx server.ts

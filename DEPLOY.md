@@ -53,25 +53,25 @@ rsync -avz --exclude node_modules --exclude .next --exclude .git \
 ```
 > rsync 가 없으면: 로컬에서 `node_modules`/`.next` 를 제외하고 zip → `scp` 로 전송 후 서버에서 압축 해제.
 
-## 5. 환경변수 설정 (서버)
+## 5. 환경변수(ADMIN_SLUG) 설정
+`ADMIN_SLUG` 은 **서버의 `.env` 파일**에서 로드된다(systemd `EnvironmentFile`). 두 가지 방식 중 하나:
+
+- **CI 사용(권장)**: GitHub Secret `ADMIN_SLUG` 에 값을 넣으면, 배포 때마다 CI가 서버 `.env` 를 자동 기록한다 → **서버에서 수동 작업 불필요**. (Step 13-D 참고)
+- **수동(CI 미사용)**: 서버에서 직접 생성:
 ```bash
 cd /home/ubuntu/skgt-vote
-
-# 관리자 비밀 slug 생성
-openssl rand -hex 12    # 출력값을 복사해 둔다 (예: 3f9a...c1)
+umask 077
+printf 'ADMIN_SLUG=%s\n' "$(openssl rand -hex 12)" > .env
+cat .env    # 값 확인 후 관리자 URL 로 사용
 ```
-`ADMIN_SLUG` 은 다음 두 곳에 **동일하게** 넣는다 (systemd 유닛이 우선). 여기서는 systemd 유닛에 직접 넣는 방식을 사용한다 → Step 6.
 
 ## 6. systemd 서비스 등록
 ```bash
-# 유닛 파일 복사
+# 유닛 파일 복사 (ADMIN_SLUG 는 유닛이 아니라 .env 에서 로드하므로 치환 불필요)
 sudo cp /home/ubuntu/skgt-vote/deploy/skgt-vote.service /etc/systemd/system/skgt-vote.service
 
-# ADMIN_SLUG 값을 방금 생성한 비밀값으로 교체
-sudo sed -i 's/REPLACE_ME_WITH_SECRET/<여기에_openssl_출력값>/' /etc/systemd/system/skgt-vote.service
-
-# (유닛 파일의 User/경로가 ubuntu, /home/ubuntu/skgt-vote 인지 확인)
-sudo nano /etc/systemd/system/skgt-vote.service
+# User/경로(ubuntu, /home/ubuntu/skgt-vote)와 EnvironmentFile 경로 확인
+grep -E "User|WorkingDirectory|EnvironmentFile|ExecStart" /etc/systemd/system/skgt-vote.service
 ```
 
 ## 7. 의존성 설치 & 빌드
@@ -220,6 +220,7 @@ git push -u origin main
 | `LIGHTSAIL_HOST` | `skgt.fun` (또는 고정 IP) |
 | `LIGHTSAIL_USER` | `ubuntu` |
 | `LIGHTSAIL_SSH_KEY` | `skgt-deploy` 개인키 **파일 내용 전체** (`-----BEGIN ...` 포함) |
+| `ADMIN_SLUG` | 관리자 비밀 slug (예: `openssl rand -hex 12` 결과). CI가 서버 `.env` 로 기록 → `/admin/<이 값>` 이 관리자 URL |
 
 ### E. 동작 방식 & 주의
 - 이후 `git push origin main` → Actions 탭에서 진행 확인. 마지막에 `https://skgt.fun/` 200 이면 성공.
@@ -250,6 +251,7 @@ free -h
 - **502 Bad Gateway**: Node 서비스가 죽음. `journalctl -u skgt-vote -f` 로 원인 확인, `.env`/ADMIN_SLUG 확인.
 - **WebSocket 연결 안 됨(폴링만 됨)**: Nginx 의 `Upgrade`/`Connection` 헤더 설정 누락. `deploy/nginx-skgt-vote.conf` 그대로 적용됐는지 확인.
 - **관리자 페이지 404**: `/admin/<slug>` 의 slug 가 systemd 의 `ADMIN_SLUG` 와 불일치. 서비스 재시작 필요.
+- **CI 배포 중 `Unit skgt-vote.service not found`**: 서버에 systemd 유닛이 아직 설치되지 않음(CI는 유닛을 건드리지 않음). Step 6 을 서버에서 1회 실행(`sudo cp deploy/skgt-vote.service ...` → ADMIN_SLUG 설정 → `daemon-reload`/`enable`/`start`) 후 워크플로우 재실행.
 
 ## 알아둘 특성 (설계상)
 - 상태는 **서버 메모리**에만 존재 → 서비스 재시작/재배포 시 진행 중 투표·채팅 **초기화**. 행사 중에는 재시작을 피할 것.

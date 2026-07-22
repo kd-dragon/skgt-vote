@@ -52,6 +52,18 @@ jobs:
             -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" \
             ./ "${{ secrets.LIGHTSAIL_USER }}@${{ secrets.LIGHTSAIL_HOST }}:/home/ubuntu/skgt-vote/"
 
+      # GitHub Secret 의 ADMIN_SLUG 를 서버 .env 로 기록 (systemd EnvironmentFile 이 로드).
+      # 값은 파일로 만들어 scp → 명령줄/로그에 노출되지 않음. rsync 는 .env 를 제외하므로 보존됨.
+      - name: 서버 .env 갱신 (ADMIN_SLUG)
+        env:
+          ADMIN_SLUG: ${{ secrets.ADMIN_SLUG }}
+        run: |
+          umask 077
+          printf 'ADMIN_SLUG=%s\n' "$ADMIN_SLUG" > runner.env
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes runner.env \
+            "${{ secrets.LIGHTSAIL_USER }}@${{ secrets.LIGHTSAIL_HOST }}:/home/ubuntu/skgt-vote/.env"
+          rm -f runner.env
+
       # 서버에서는 런타임 의존성만 가볍게 설치 후 재시작 (빌드 없음)
       - name: 서버 런타임 설치 & 서비스 재시작
         run: |
