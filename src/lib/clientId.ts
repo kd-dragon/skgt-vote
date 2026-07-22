@@ -1,6 +1,7 @@
 "use client";
 
 const KEY = "skgt-vote-client-id";
+const COLOR_KEY = "skgt-vote-color";
 
 /**
  * 브라우저별 영구 식별자. localStorage 에 저장하여 새로고침/재접속에도 유지.
@@ -18,4 +19,16 @@ export function getClientId(): string {
     localStorage.setItem(KEY, id);
   }
   return id;
+}
+
+/** 저장된 크루원 색상 id (없으면 null) */
+export function getSavedColor(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(COLOR_KEY);
+}
+
+/** 크루원 색상 선택 저장 */
+export function saveColor(colorId: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(COLOR_KEY, colorId);
 }

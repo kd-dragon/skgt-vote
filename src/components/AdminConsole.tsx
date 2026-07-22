@@ -68,6 +68,16 @@ export default function AdminConsole({ slug }: { slug: string }) {
     }
   };
 
+  const handleResetAll = () => {
+    if (
+      confirm(
+        "전체 초기화하시겠어요?\n현재 투표는 물론 사용자 화면의 '지난 투표 결과'까지 모두 삭제됩니다. (되돌릴 수 없음)"
+      )
+    ) {
+      getSocket().emit("admin:reset:all", { adminKey: slug });
+    }
+  };
+
   return (
     <main className="mx-auto min-h-[100dvh] max-w-lg space-y-4 p-4">
       <header className="flex items-center justify-between rounded-xl bg-slate-800 px-4 py-3 text-white">
@@ -155,6 +165,20 @@ export default function AdminConsole({ slug }: { slug: string }) {
           </button>
         </div>
       )}
+
+      {/* 위험 구역: 전체 초기화 (지난 결과 히스토리까지 삭제) */}
+      <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+        <p className="mb-2 text-xs font-medium text-red-700">위험 구역</p>
+        <button
+          onClick={handleResetAll}
+          className="w-full rounded-xl border border-red-300 bg-white py-2.5 text-sm font-semibold text-red-600 active:bg-red-100"
+        >
+          🧹 전체 초기화 (지난 결과까지 삭제)
+        </button>
+        <p className="mt-2 text-xs text-red-500/80">
+          사용자 화면의 &lsquo;지난 투표 결과&rsquo; 배너가 사라집니다. 되돌릴 수 없어요.
+        </p>
+      </div>
     </main>
   );
 }

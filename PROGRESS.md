@@ -1,11 +1,13 @@
 # PROGRESS.md — 진행 현황
 
-> 최종 업데이트: 2026-07-22 (skgt.fun 도메인 연결 · 포트 없는 접속용 Nginx SSL 설정 추가)
+> 최종 업데이트: 2026-07-22 (🚀 실서비스 배포 완료 · GitHub Actions 자동 배포 동작 확인)
 
-## 배포 환경 (현재)
+## 배포 환경 (운영 중)
 - 도메인: **skgt.fun** (Lightsail 고정 IP 연결 완료)
 - SSL: **Certbot(Let's Encrypt) 적용 완료**
 - 접속: `https://skgt.fun` (Nginx 443 → 127.0.0.1:3000 프록시로 포트 노출 제거) / 관리자 `https://skgt.fun/admin/<ADMIN_SLUG>`
+- 구동: systemd `skgt-vote.service` (tsx 커스텀 서버, 자동 재시작)
+- CI/CD: GitHub Actions — `main` push 시 러너 빌드 → rsync → 서버 재시작 자동 배포 **동작 확인 완료** ✅
 
 ## 개요
 행사용 실시간 모바일 투표 & 채팅 서비스. RDB 없이 Next.js + Socket.io + In-Memory 로 구성.
@@ -97,9 +99,20 @@
 - [x] DEPLOY.md: Secret 표에 `ADMIN_SLUG` 추가, Step5/6(수동 .env 또는 CI 자동) 갱신
 - **주의**: `socketHandlers.ts` 가 모듈 로드 시점에 `process.env.ADMIN_SLUG` 를 읽으므로 반드시 systemd EnvironmentFile 로 주입(Next .env 자동로드에 의존 X)
 
+### 10. 어몽어스 테마 + 관리자 전체 초기화
+- [x] 오리지널 크루원 SVG(`Crewmate.tsx`) + 12색 팔레트(`crewmates.ts`) — 공식 에셋 미사용, 인라인 SVG
+- [x] 입장 화면: 닉네임 + 캐릭터(색상) 선택 그리드, localStorage 저장/복원
+- [x] `User`/`ChatMessage`에 `color` 추가, `user:join`에 color 전달 → 채팅·입장/퇴장 안내에 크루원 표시
+- [x] 사용자 화면 전체 우주 테마(`space-bg` 별 배경, `au-btn` 3D 버튼, float 애니메이션), `VoteResult` dark 모드
+- [x] 관리자 **전체 초기화** 버튼: `admin:reset:all` → `store.hardReset()`(현재+지난 결과+투표자 삭제) → 사용자 화면 '지난 투표 결과' 배너 제거
+- **검증**: `tsc` 통과 / `next build` 성공. **육안(브라우저) 확인은 사용자 몫**(테마/캐릭터 렌더)
+
+## ✅ 배포 완료
+- [x] **실제 Lightsail 배포 수행** — GitHub Actions 자동 배포로 `https://skgt.fun` 서비스 운영 중
+
 ## 🔜 다음 후보 (미착수)
-- [ ] **실제 Lightsail 배포 수행** (수동 DEPLOY 또는 GitHub Actions로) ← 다음 단계
 - [ ] 관리자 인증 추가 강화 (세션/미들웨어/rate-limit) — 현재 비밀 slug 방식
+- [ ] 채팅/투표 소켓 rate-limit (도배 방지)
 - [ ] 1인 1표 강화 (IP 기반 / 사전 발급 코드)
 - [ ] 다중 방(이벤트) 지원
 - [ ] `npm run lint` 정식 실행 및 정리

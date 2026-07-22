@@ -4,6 +4,7 @@ import type {
   ServerToClientEvents,
   Vote,
 } from "@/lib/types";
+import { DEFAULT_COLOR_ID, isValidColorId } from "@/lib/crewmates";
 import { store } from "./store";
 
 type IOServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -71,17 +72,19 @@ export function registerSocketHandlers(io: IOServer) {
     });
 
     // ── 입장 ──────────────────────────────
-    socket.on("user:join", ({ nickname, clientId }, ack) => {
+    socket.on("user:join", ({ nickname, clientId, color }, ack) => {
       const clean = (nickname || "").trim().slice(0, 20);
       const cid = (clientId || "").trim();
+      const col = isValidColorId(color) ? color : DEFAULT_COLOR_ID;
       if (!clean || !cid) {
         ack?.(false);
         return;
       }
-      store.addUser(socket.id, cid, clean);
+      store.addUser(socket.id, cid, clean, col);
       const sysMsg = store.addMessage({
         nickname: "안내",
-        message: `${clean} 님이 입장했습니다.`,
+        message: `${clean} 님이 탑승했습니다.`,
+        color: col,
         system: true,
       });
       io.emit("chat:new", sysMsg);
@@ -96,7 +99,11 @@ export function registerSocketHandlers(io: IOServer) {
       const user = store.getUser(socket.id);
       const text = (message || "").trim().slice(0, 300);
       if (!user || !text) return;
-      const msg = store.addMessage({ nickname: user.nickname, message: text });
+      const msg = store.addMessage({
+        nickname: user.nickname,
+        message: text,
+        color: user.color,
+      });
       io.emit("chat:new", msg);
     });
 
@@ -176,13 +183,25 @@ export function registerSocketHandlers(io: IOServer) {
       broadcastPrevious(io); // 초기화 시 방금 종료된 결과를 지난 결과로 노출
     });
 
+    // ── 관리자: 전체 초기화(지난 결과 히스토리까지 삭제) ──────────────────────────────
+    socket.on("admin:reset:all", ({ adminKey }) => {
+      if (!isAdmin(adminKey)) {
+        socket.emit("error:msg", "관리자 권한이 없습니다.");
+        return;
+      }
+      store.hardReset();
+      broadcastVote(io); // 현재 투표 없음(null)
+      broadcastPrevious(io); // 지난 결과도 없음(null) → 사용자 화면 히스토리 사라짐
+    });
+
     // ── 연결 해제 ──────────────────────────────
     socket.on("disconnect", () => {
       const user = store.removeUser(socket.id);
       if (user) {
         const sysMsg = store.addMessage({
           nickname: "안내",
-          message: `${user.nickname} 님이 퇴장했습니다.`,
+          message: `${user.nickname} 님이 떠났습니다.`,
+          color: user.color,
           system: true,
         });
         io.emit("chat:new", sysMsg);

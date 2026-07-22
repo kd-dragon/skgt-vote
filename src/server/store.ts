@@ -22,8 +22,8 @@ class EventStore {
   private readonly MAX_MESSAGES = 200; // 메모리 보호용 채팅 보관 상한
 
   // ── 사용자 ──────────────────────────────
-  addUser(id: string, clientId: string, nickname: string): User {
-    const user: User = { id, clientId, nickname, joinedAt: Date.now() };
+  addUser(id: string, clientId: string, nickname: string, color: string): User {
+    const user: User = { id, clientId, nickname, color, joinedAt: Date.now() };
     this.users.set(id, user);
     return user;
   }
@@ -112,6 +112,13 @@ class EventStore {
       this.previousVote = this.currentVote;
     }
     this.currentVote = null;
+    this.voters.clear();
+  }
+
+  /** 전체 초기화: 현재 투표 + 지난 결과 히스토리까지 모두 삭제 */
+  hardReset(): void {
+    this.currentVote = null;
+    this.previousVote = null;
     this.voters.clear();
   }
 

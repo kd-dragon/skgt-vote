@@ -8,6 +8,7 @@ export interface User {
   id: string; // socket id 기반 (재연결 시 변경됨)
   clientId: string; // 브라우저 localStorage 영구 식별자 (1인 1표 기준)
   nickname: string;
+  color: string; // 크루원 색상 id (어몽어스 캐릭터)
   joinedAt: number;
 }
 
@@ -35,6 +36,7 @@ export interface ChatMessage {
   nickname: string;
   message: string;
   timestamp: number;
+  color?: string; // 보낸 사람 크루원 색상 id (시스템 메시지는 없음)
   system?: boolean; // 입장/퇴장 등 시스템 알림 여부
 }
 
@@ -65,7 +67,7 @@ export interface ServerToClientEvents {
 /** 클라이언트 -> 서버 */
 export interface ClientToServerEvents {
   "user:join": (
-    payload: { nickname: string; clientId: string },
+    payload: { nickname: string; clientId: string; color: string },
     ack?: (ok: boolean) => void
   ) => void;
   "chat:send": (payload: { message: string }) => void;
@@ -76,4 +78,6 @@ export interface ClientToServerEvents {
   "admin:vote:create": (payload: { title: string; options: string[]; adminKey?: string }) => void;
   "admin:vote:close": (payload: { adminKey?: string }) => void;
   "admin:vote:reset": (payload: { adminKey?: string }) => void;
+  /** 전체 초기화: 현재 투표 + 지난 결과 히스토리까지 모두 삭제 */
+  "admin:reset:all": (payload: { adminKey?: string }) => void;
 }

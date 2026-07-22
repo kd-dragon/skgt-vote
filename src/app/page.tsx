@@ -2,14 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import { getSocket } from "@/lib/socket";
-import { getClientId } from "@/lib/clientId";
+import { getClientId, getSavedColor, saveColor } from "@/lib/clientId";
+import { CREWMATE_COLORS, DEFAULT_COLOR_ID, getCrewmateColor } from "@/lib/crewmates";
 import type { ChatMessage, Vote } from "@/lib/types";
 import VoteResult from "@/components/VoteResult";
 import ResultReveal from "@/components/ResultReveal";
+import Crewmate from "@/components/Crewmate";
 
 export default function UserPage() {
   const [joined, setJoined] = useState(false);
   const [nickname, setNickname] = useState("");
+  const [color, setColor] = useState(DEFAULT_COLOR_ID);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userCount, setUserCount] = useState(0);
   const [vote, setVote] = useState<Vote | null>(null);
@@ -20,6 +23,12 @@ export default function UserPage() {
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const voteRef = useRef<Vote | null>(null); // OPEN→CLOSED 전환 감지용
+
+  // 저장된 크루원 색상 복원
+  useEffect(() => {
+    const saved = getSavedColor();
+    if (saved) setColor(saved);
+  }, []);
 
   // 소켓 이벤트 구독
   useEffect(() => {
@@ -72,9 +81,12 @@ export default function UserPage() {
     if (!name) return;
     getSocket().emit(
       "user:join",
-      { nickname: name, clientId: getClientId() },
+      { nickname: name, clientId: getClientId(), color },
       (ok) => {
-        if (ok) setJoined(true);
+        if (ok) {
+          saveColor(color);
+          setJoined(true);
+        }
       }
     );
   };
@@ -91,30 +103,56 @@ export default function UserPage() {
     getSocket().emit("vote:cast", { optionId });
   };
 
-  // ── 닉네임 입력 화면 ──────────────────────────────
+  // ── 닉네임/캐릭터 선택 화면 ──────────────────────────────
   if (!joined) {
     return (
-      <main className="flex min-h-[100dvh] flex-col items-center justify-center p-6">
-        <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg">
-          <h1 className="mb-1 text-center text-2xl font-bold text-brand">
-            실시간 투표 & 채팅
+      <main className="space-bg flex min-h-[100dvh] flex-col items-center justify-center p-6 text-white">
+        <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
+          {/* 선택한 크루원 미리보기 */}
+          <div className="mb-2 flex justify-center">
+            <Crewmate color={color} size={92} className="float-y drop-shadow-lg" />
+          </div>
+          <h1 className="mb-1 text-center text-2xl font-extrabold tracking-tight">
+            SKGT 우주선 🚀
           </h1>
-          <p className="mb-6 text-center text-sm text-slate-500">
-            닉네임을 입력하고 입장하세요
+          <p className="mb-5 text-center text-sm text-white/60">
+            크루원을 고르고 탑승하세요
           </p>
+
           <input
-            className="mb-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-brand"
+            className="mb-4 w-full rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-base text-white placeholder-white/40 outline-none focus:border-cyan-300"
             placeholder="닉네임 (최대 20자)"
             value={nickname}
             maxLength={20}
             onChange={(e) => setNickname(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleJoin()}
           />
+
+          {/* 캐릭터(색상) 선택 그리드 */}
+          <p className="mb-2 text-xs font-semibold text-white/50">캐릭터 색상</p>
+          <div className="mb-5 grid grid-cols-6 gap-2">
+            {CREWMATE_COLORS.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setColor(c.id)}
+                aria-label={c.name}
+                aria-pressed={color === c.id}
+                className={`flex items-center justify-center rounded-xl p-1 transition ${
+                  color === c.id
+                    ? "bg-white/20 ring-2 ring-cyan-300"
+                    : "bg-white/5 hover:bg-white/10"
+                }`}
+              >
+                <Crewmate color={c.id} size={34} />
+              </button>
+            ))}
+          </div>
+
           <button
             onClick={handleJoin}
-            className="w-full rounded-xl bg-brand py-3 text-base font-semibold text-white active:bg-brand-dark"
+            className="au-btn w-full bg-cyan-400 py-3 text-base text-slate-900 border-cyan-600 hover:brightness-105"
           >
-            입장하기
+            탑승하기
           </button>
         </div>
       </main>
@@ -123,28 +161,33 @@ export default function UserPage() {
 
   // ── 채팅 + 투표 화면 ──────────────────────────────
   return (
-    <main className="flex h-[100dvh] flex-col">
+    <main className="space-bg flex h-[100dvh] flex-col text-white">
       {/* 결과 발표 오버레이 (투표 종료 순간 자동 등장) */}
       {revealVote && (
         <ResultReveal vote={revealVote} onClose={() => setRevealVote(null)} />
       )}
 
       {/* 헤더 */}
-      <header className="flex items-center justify-between bg-brand px-4 py-3 text-white shadow">
-        <span className="font-semibold">실시간 채팅</span>
-        <span className="text-sm opacity-90">👥 {userCount}명 접속</span>
+      <header className="flex items-center justify-between border-b border-white/10 bg-black/30 px-4 py-3 backdrop-blur">
+        <div className="flex items-center gap-2">
+          <Crewmate color={color} size={28} />
+          <span className="font-bold">SKGT 우주선</span>
+        </div>
+        <span className="rounded-full bg-white/10 px-3 py-1 text-sm">
+          🧑‍🚀 {userCount}명 탑승
+        </span>
       </header>
 
       {/* 진행 중 투표 배너 */}
       {vote && (
-        <section className="border-b bg-white p-4">
-          <div className="mb-2 flex items-center justify-between">
+        <section className="border-b border-white/10 bg-white/5 p-4 backdrop-blur">
+          <div className="mb-3 flex items-center justify-between">
             <h2 className="font-bold">{vote.title}</h2>
             <span
               className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                 vote.status === "OPEN"
-                  ? "bg-green-100 text-green-700"
-                  : "bg-slate-200 text-slate-600"
+                  ? "bg-emerald-400/20 text-emerald-300"
+                  : "bg-white/10 text-white/60"
               }`}
             >
               {vote.status === "OPEN" ? "진행 중" : "종료됨"}
@@ -158,7 +201,7 @@ export default function UserPage() {
                 <button
                   key={opt.id}
                   onClick={() => handleVote(opt.id)}
-                  className="rounded-xl border-2 border-brand py-3 font-medium text-brand active:bg-brand active:text-white"
+                  className="au-btn bg-indigo-500 py-3 text-white border-indigo-800 hover:brightness-110"
                 >
                   {opt.label}
                 </button>
@@ -166,45 +209,54 @@ export default function UserPage() {
             </div>
           ) : vote.status === "OPEN" && voted ? (
             // 진행 중 & 투표 완료: 결과는 숨기고 완료 안내만 (집계 비공개)
-            <div className="rounded-xl bg-slate-50 py-6 text-center">
-              <p className="text-sm font-medium text-green-600">
-                ✅ 투표 완료!
-              </p>
-              <p className="mt-1 text-xs text-slate-400">
+            <div className="rounded-xl bg-black/20 py-6 text-center">
+              <p className="text-sm font-semibold text-emerald-300">✅ 투표 완료!</p>
+              <p className="mt-1 text-xs text-white/50">
                 결과는 투표 종료 후 공개됩니다.
               </p>
             </div>
           ) : (
             // 종료됨: 최종 결과 공개
-            <VoteResult vote={vote} />
+            <VoteResult vote={vote} dark />
           )}
         </section>
       )}
 
       {/* 지난 투표 결과 (사용자 조회용, 간단히 펼쳐보기) */}
       {prevVote && (
-        <section className="border-b bg-slate-50 px-4 py-3">
+        <section className="border-b border-white/10 bg-black/20 px-4 py-3">
           <details>
-            <summary className="cursor-pointer select-none text-sm font-semibold text-slate-600">
+            <summary className="cursor-pointer select-none text-sm font-semibold text-white/70">
               📊 지난 투표 결과 · {prevVote.title}
             </summary>
             <div className="mt-3">
-              <VoteResult vote={prevVote} />
+              <VoteResult vote={prevVote} dark />
             </div>
           </details>
         </section>
       )}
 
       {/* 채팅 영역 */}
-      <div className="flex-1 space-y-2 overflow-y-auto p-4">
+      <div className="flex-1 space-y-1.5 overflow-y-auto p-4">
         {messages.map((m) => (
           <div key={m.id}>
             {m.system ? (
-              <p className="text-center text-xs text-slate-400">{m.message}</p>
+              <p className="flex items-center justify-center gap-1 text-center text-xs text-white/40">
+                {m.color && <Crewmate color={m.color} size={16} />}
+                {m.message}
+              </p>
             ) : (
-              <div className="text-sm">
-                <span className="font-semibold text-brand">{m.nickname}</span>{" "}
-                <span className="break-words">{m.message}</span>
+              <div className="flex items-start gap-2 rounded-xl bg-white/5 px-3 py-2">
+                <Crewmate color={m.color} size={22} className="mt-0.5 shrink-0" />
+                <div className="min-w-0 text-sm">
+                  <span
+                    className="mr-1 font-bold"
+                    style={{ color: brightName(m.color) }}
+                  >
+                    {m.nickname}
+                  </span>
+                  <span className="break-words text-white/90">{m.message}</span>
+                </div>
               </div>
             )}
           </div>
@@ -213,9 +265,9 @@ export default function UserPage() {
       </div>
 
       {/* 입력창 */}
-      <div className="flex gap-2 border-t bg-white p-3">
+      <div className="flex gap-2 border-t border-white/10 bg-black/30 p-3 backdrop-blur">
         <input
-          className="flex-1 rounded-full border border-slate-300 px-4 py-2 text-base outline-none focus:border-brand"
+          className="flex-1 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-base text-white placeholder-white/40 outline-none focus:border-cyan-300"
           placeholder="메시지 입력..."
           value={input}
           maxLength={300}
@@ -224,11 +276,19 @@ export default function UserPage() {
         />
         <button
           onClick={handleSend}
-          className="rounded-full bg-brand px-5 font-semibold text-white active:bg-brand-dark"
+          className="au-btn bg-cyan-400 px-5 text-slate-900 border-cyan-600 hover:brightness-105"
         >
           전송
         </button>
       </div>
     </main>
   );
+}
+
+/** 어두운 배경에서 잘 보이도록 닉네임 색을 밝게 보정 */
+function brightName(colorId?: string): string {
+  const c = getCrewmateColor(colorId);
+  // 어두운 계열(검정/갈색/보라/파랑)은 흰색에 가깝게, 나머지는 본색 사용
+  const darkish = ["black", "brown", "purple", "blue", "green", "red"];
+  return darkish.includes(c.id) ? "#E5EDFB" : c.hex;
 }
