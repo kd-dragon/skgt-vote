@@ -1,0 +1,66 @@
+name: Deploy to Lightsail
+
+# main 브랜치 push 시 자동 배포 (수동 실행도 가능)
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 배포가 겹치지 않도록 직렬화
+concurrency:
+  group: deploy-lightsail
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 소스 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 20 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # 러너(메모리 넉넉)에서 빌드 → 512MB 서버에서 빌드하지 않음
+      - name: 의존성 설치 (빌드용 전체)
+        run: npm ci
+
+      - name: 프로덕션 빌드
+        run: npm run build
+
+      - name: SSH 키 준비
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.LIGHTSAIL_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      # 빌드 결과물(.next)과 소스를 서버로 전송.
+      # node_modules/.env/.git/.claude 는 제외(서버 것 보존 및 비밀 보호).
+      - name: 서버로 rsync 전송
+        run: |
+          rsync -az --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude 'node_modules' \
+            --exclude '.claude' \
+            --exclude '.env' \
+            --exclude '.env*.local' \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" \
+            ./ "${{ secrets.LIGHTSAIL_USER }}@${{ secrets.LIGHTSAIL_HOST }}:/home/ubuntu/skgt-vote/"
+
+      # 서버에서는 런타임 의존성만 가볍게 설치 후 재시작 (빌드 없음)
+      - name: 서버 런타임 설치 & 서비스 재시작
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
+            "${{ secrets.LIGHTSAIL_USER }}@${{ secrets.LIGHTSAIL_HOST }}" \
+            'set -e; cd /home/ubuntu/skgt-vote && npm ci --omit=dev && sudo systemctl restart skgt-vote && sleep 2 && sudo systemctl --no-pager status skgt-vote | head -6'
+
+      - name: 배포 확인 (HTTPS 200)
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" https://skgt.fun/ || true)
+          echo "https://skgt.fun/ → $code"
+          test "$code" = "200"

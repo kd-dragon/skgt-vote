@@ -1,0 +1,28 @@
+[Unit]
+Description=SKGT Vote - 실시간 투표 & 채팅 (Next.js + Socket.io)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/skgt-vote
+
+# 프로덕션 환경변수 (ADMIN_SLUG 는 반드시 실제 비밀값으로 교체!)
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=ADMIN_SLUG=REPLACE_ME_WITH_SECRET
+
+# tsx 로 커스텀 서버(server.ts) 직접 구동 (npm/cross-env 불필요)
+ExecStart=/home/ubuntu/skgt-vote/node_modules/.bin/tsx server.ts
+
+# 비정상 종료 시 자동 재시작
+Restart=always
+RestartSec=3
+
+# 로그는 journald 로 (journalctl -u skgt-vote 로 확인)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=skgt-vote
+
+[Install]
+WantedBy=multi-user.target
