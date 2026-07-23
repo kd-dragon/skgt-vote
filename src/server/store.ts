@@ -56,6 +56,11 @@ class EventStore {
     return message;
   }
 
+  /** 전체 채팅 기록 삭제 (관리자용) */
+  clearMessages(): void {
+    this.messages = [];
+  }
+
   // ── 투표 ──────────────────────────────
   createVote(title: string, optionLabels: string[]): Vote {
     const options: VoteOption[] = optionLabels.map((label, i) => ({

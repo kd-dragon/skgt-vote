@@ -194,6 +194,16 @@ export function registerSocketHandlers(io: IOServer) {
       broadcastPrevious(io); // 지난 결과도 없음(null) → 사용자 화면 히스토리 사라짐
     });
 
+    // ── 관리자: 채팅 기록 초기화 ──────────────────────────────
+    socket.on("admin:chat:clear", ({ adminKey }) => {
+      if (!isAdmin(adminKey)) {
+        socket.emit("error:msg", "관리자 권한이 없습니다.");
+        return;
+      }
+      store.clearMessages();
+      io.emit("chat:clear"); // 모든 사용자 화면의 채팅창 비움
+    });
+
     // ── 연결 해제 ──────────────────────────────
     socket.on("disconnect", () => {
       const user = store.removeUser(socket.id);

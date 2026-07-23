@@ -78,6 +78,42 @@ export default function AdminConsole({ slug }: { slug: string }) {
     }
   };
 
+  // 종료된 투표에서 최다 득표를 공유하는(동률) 후보들. 2개 이상일 때만 동점 재투표 대상.
+  const tiedOptions = (() => {
+    if (!vote || vote.status !== "CLOSED") return [];
+    const max = Math.max(0, ...Object.values(vote.results));
+    if (max <= 0) return [];
+    const tied = vote.options.filter((o) => (vote.results[o.id] ?? 0) === max);
+    return tied.length >= 2 ? tied : [];
+  })();
+
+  const handleTieRevote = () => {
+    if (!vote || tiedOptions.length < 2) return;
+    if (
+      confirm(
+        `동점인 ${tiedOptions.length}개 후보로 재투표를 시작할까요?\n(${tiedOptions
+          .map((o) => o.label)
+          .join(", ")})`
+      )
+    ) {
+      getSocket().emit("admin:vote:create", {
+        title: `${vote.title} (재투표)`,
+        options: tiedOptions.map((o) => o.label),
+        adminKey: slug,
+      });
+    }
+  };
+
+  const handleClearChat = () => {
+    if (
+      confirm(
+        "전체 채팅 기록을 초기화할까요?\n모든 사용자의 채팅창이 즉시 비워집니다. (되돌릴 수 없음)"
+      )
+    ) {
+      getSocket().emit("admin:chat:clear", { adminKey: slug });
+    }
+  };
+
   return (
     <main className="mx-auto min-h-[100dvh] max-w-lg space-y-4 p-4">
       <header className="flex items-center justify-between rounded-xl bg-slate-800 px-4 py-3 text-white">
@@ -112,12 +148,22 @@ export default function AdminConsole({ slug }: { slug: string }) {
                 투표 종료
               </button>
             ) : (
-              <button
-                onClick={handleReset}
-                className="flex-1 rounded-xl bg-slate-600 py-3 font-semibold text-white active:bg-slate-700"
-              >
-                새 투표 준비
-              </button>
+              <>
+                <button
+                  onClick={handleReset}
+                  className="flex-1 rounded-xl bg-slate-600 py-3 font-semibold text-white active:bg-slate-700"
+                >
+                  새 투표 준비
+                </button>
+                {tiedOptions.length >= 2 && (
+                  <button
+                    onClick={handleTieRevote}
+                    className="flex-1 rounded-xl bg-amber-500 py-3 font-semibold text-white active:bg-amber-600"
+                  >
+                    👑 동점 재투표
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -165,6 +211,20 @@ export default function AdminConsole({ slug }: { slug: string }) {
           </button>
         </div>
       )}
+
+      {/* 채팅 관리: 전체 채팅 기록 초기화 */}
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <p className="mb-2 text-xs font-medium text-amber-700">채팅 관리</p>
+        <button
+          onClick={handleClearChat}
+          className="w-full rounded-xl border border-amber-300 bg-white py-2.5 text-sm font-semibold text-amber-700 active:bg-amber-100"
+        >
+          💬 전체 채팅 기록 초기화
+        </button>
+        <p className="mt-2 text-xs text-amber-600/80">
+          모든 사용자의 채팅창이 즉시 비워집니다. 투표 결과에는 영향을 주지 않아요.
+        </p>
+      </div>
 
       {/* 위험 구역: 전체 초기화 (지난 결과 히스토리까지 삭제) */}
       <div className="rounded-xl border border-red-200 bg-red-50 p-4">

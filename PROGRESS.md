@@ -107,6 +107,27 @@
 - [x] 관리자 **전체 초기화** 버튼: `admin:reset:all` → `store.hardReset()`(현재+지난 결과+투표자 삭제) → 사용자 화면 '지난 투표 결과' 배너 제거
 - **검증**: `tsc` 통과 / `next build` 성공. **육안(브라우저) 확인은 사용자 몫**(테마/캐릭터 렌더)
 
+### 11. 관리자 전체 채팅 기록 초기화
+- [x] `store.clearMessages()` — 서버 메모리 채팅 배열 비움 (투표/투표자에는 영향 없음)
+- [x] 소켓 이벤트: `admin:chat:clear`(client→server, slug 인증) / `chat:clear`(server→client 브로드캐스트)
+- [x] `socketHandlers.admin:chat:clear` → `store.clearMessages()` 후 `io.emit("chat:clear")`
+- [x] 사용자 화면(`page.tsx`): `chat:clear` 구독 → `setMessages([])`로 채팅창 즉시 비움
+- [x] 관리자 콘솔(`AdminConsole.tsx`): '채팅 관리' 구역에 **💬 전체 채팅 기록 초기화** 버튼(confirm 후 실행)
+- **검증**: `tsc --noEmit` 통과. **육안(브라우저) 확인은 사용자 몫**
+
+### 12. 긴급 투표(Emergency Meeting) 등장 애니메이션
+- [x] `EmergencyMeeting.tsx` 신규: 어몽어스풍 긴급회의 오버레이(빨간 경고 플래시 + 화면 흔들림 + 크루원 난입 + 큰 텍스트 팝), 2.9s 후 자동 종료·탭 시 즉시 스킵
+- [x] `globals.css` keyframes 추가: `em-shake`/`em-flash`/`em-crew-in`/`em-text-in`/`em-spin`(속도선) + `prefers-reduced-motion` 대응
+- [x] 투표 버튼 디자인 변경: 블루→흰 배경·진한 글씨, 가운데 정렬 테두리 박스(`max-w-xs`)로 양쪽 여백 구분
+- [x] `page.tsx`: `vote:update`에서 OPEN & 새 ID 감지 시 `setMeetingVote` → 오버레이 등장(난입 크루원은 접속자 본인 색)
+- **검증**: `tsc --noEmit` 통과. **애니메이션 육안 확인은 사용자 몫**
+
+### 13. 동률 처리 + 동점 재투표
+- [x] `ResultReveal.tsx`: 왕관 조건을 `idx===0`→`count===maxCount`로 수정 → 동점자 전원 👑 (VoteResult는 이미 동률 지원)
+- [x] `AdminConsole.tsx`: 종료 투표에서 최다 득표 공유 후보(2개↑) 계산 → **👑 동점 재투표** 버튼을 '새 투표 준비' 옆에 노출
+- [x] 동점 재투표는 별도 서버 이벤트 없이 기존 `admin:vote:create` 재사용(동점 후보 label 만 옵션으로, 제목 `~ (동점 재투표)`) → 긴급 투표 오버레이도 그대로 동작, 직전 결과는 지난 결과로 보존
+- **검증**: `tsc --noEmit` 통과. **육안 확인은 사용자 몫**
+
 ## ✅ 배포 완료
 - [x] **실제 Lightsail 배포 수행** — GitHub Actions 자동 배포로 `https://skgt.fun` 서비스 운영 중
 

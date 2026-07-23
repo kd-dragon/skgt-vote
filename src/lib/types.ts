@@ -55,6 +55,8 @@ export interface StateSnapshot {
 export interface ServerToClientEvents {
   "state:sync": (snapshot: StateSnapshot) => void;
   "chat:new": (message: ChatMessage) => void;
+  /** 채팅 기록 전체 초기화 (관리자가 실행) → 사용자 화면 채팅창 비움 */
+  "chat:clear": () => void;
   "users:update": (count: number) => void;
   "vote:update": (vote: Vote | null) => void;
   /** 직전 종료된 투표 결과 (사용자 조회용) */
@@ -80,4 +82,6 @@ export interface ClientToServerEvents {
   "admin:vote:reset": (payload: { adminKey?: string }) => void;
   /** 전체 초기화: 현재 투표 + 지난 결과 히스토리까지 모두 삭제 */
   "admin:reset:all": (payload: { adminKey?: string }) => void;
+  /** 채팅 기록 전체 초기화 */
+  "admin:chat:clear": (payload: { adminKey?: string }) => void;
 }

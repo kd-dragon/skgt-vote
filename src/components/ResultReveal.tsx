@@ -113,10 +113,11 @@ export default function ResultReveal({
             <h2 className="mb-6 text-center text-2xl font-bold">{vote.title}</h2>
 
             <div className="space-y-4">
-              {ranked.map((opt, idx) => {
+              {ranked.map((opt) => {
                 const count = vote.results[opt.id] ?? 0;
                 const pct = total === 0 ? 0 : (count / total) * 100;
-                const isWinner = idx === 0 && count > 0 && count === maxCount;
+                // 동률이면 최다 득표를 공유하는 모든 후보에게 왕관
+                const isWinner = count > 0 && count === maxCount;
                 const shownCount = Math.round(count * t);
                 const shownPct = Math.round(pct * t);
                 return (

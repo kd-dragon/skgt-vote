@@ -7,6 +7,7 @@ import { CREWMATE_COLORS, DEFAULT_COLOR_ID, getCrewmateColor } from "@/lib/crewm
 import type { ChatMessage, Vote } from "@/lib/types";
 import VoteResult from "@/components/VoteResult";
 import ResultReveal from "@/components/ResultReveal";
+import EmergencyMeeting from "@/components/EmergencyMeeting";
 import Crewmate from "@/components/Crewmate";
 
 export default function UserPage() {
@@ -20,6 +21,7 @@ export default function UserPage() {
   const [voted, setVoted] = useState(false);
   const [input, setInput] = useState("");
   const [revealVote, setRevealVote] = useState<Vote | null>(null); // 발표 오버레이 대상
+  const [meetingVote, setMeetingVote] = useState<Vote | null>(null); // 긴급 투표 오버레이 대상
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const voteRef = useRef<Vote | null>(null); // OPEN→CLOSED 전환 감지용
@@ -42,12 +44,17 @@ export default function UserPage() {
       setPrevVote(snap.previousVote);
     });
     socket.on("chat:new", (msg) => setMessages((prev) => [...prev, msg]));
+    socket.on("chat:clear", () => setMessages([])); // 관리자가 채팅 기록 초기화
     socket.on("users:update", (count) => setUserCount(count));
     socket.on("vote:update", (v) => {
       const prev = voteRef.current;
       voteRef.current = v;
       // 투표 ID가 바뀔 때(=새 투표)만 투표 가능 상태로 초기화.
       if (v?.id !== prev?.id) setVoted(false);
+      // 새 투표 생성(진행 중 & 새 ID) 순간에 긴급 투표 오버레이 실행
+      if (v && v.status === "OPEN" && v.id !== prev?.id) {
+        setMeetingVote(v);
+      }
       // OPEN → CLOSED 전환 순간에 결과 발표 오버레이 실행
       if (v && v.status === "CLOSED" && prev?.id === v.id && prev.status === "OPEN") {
         setRevealVote(v);
@@ -63,6 +70,7 @@ export default function UserPage() {
     return () => {
       socket.off("state:sync");
       socket.off("chat:new");
+      socket.off("chat:clear");
       socket.off("users:update");
       socket.off("vote:update");
       socket.off("vote:previous");
@@ -162,6 +170,15 @@ export default function UserPage() {
   // ── 채팅 + 투표 화면 ──────────────────────────────
   return (
     <main className="space-bg flex h-[100dvh] flex-col text-white">
+      {/* 긴급 투표 오버레이 (새 투표 생성 순간 자동 등장) */}
+      {meetingVote && (
+        <EmergencyMeeting
+          title={meetingVote.title}
+          color={color}
+          onClose={() => setMeetingVote(null)}
+        />
+      )}
+
       {/* 결과 발표 오버레이 (투표 종료 순간 자동 등장) */}
       {revealVote && (
         <ResultReveal vote={revealVote} onClose={() => setRevealVote(null)} />
@@ -196,12 +213,12 @@ export default function UserPage() {
 
           {vote.status === "OPEN" && !voted ? (
             // 진행 중 & 미투표: 후보 버튼만 노출 (집계 비공개)
-            <div className="grid grid-cols-1 gap-2">
+            <div className="mx-auto flex max-w-xs flex-col gap-3 rounded-2xl border border-white/15 bg-black/20 p-4">
               {vote.options.map((opt) => (
                 <button
                   key={opt.id}
                   onClick={() => handleVote(opt.id)}
-                  className="au-btn bg-indigo-500 py-3 text-white border-indigo-800 hover:brightness-110"
+                  className="au-btn bg-white py-3.5 text-base font-bold text-slate-900 border-slate-300 shadow-lg hover:brightness-105"
                 >
                   {opt.label}
                 </button>
