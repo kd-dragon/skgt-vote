@@ -7,7 +7,7 @@ import { EMOJIS } from "@/lib/emojis";
 const MAX_PARTICLES = 100; // 동시 파티클 상한 (성능 보호)
 const MAX_PER_SPAWN = 30; // 한 이벤트로 만들 최대 파티클 수
 
-const MEGA_CHANCE = 0.1; // 10번 중 1번 초대형 이모지
+const MEGA_CHANCE = 0.05; // 20번 중 1번 초대형 이모지
 
 type Particle = {
   id: number;

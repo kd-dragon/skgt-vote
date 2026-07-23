@@ -213,7 +213,7 @@ export default function UserPage() {
   // ── 채팅 + 투표 화면 ──────────────────────────────
   return (
     <main className="space-bg flex h-[100dvh] flex-col text-white">
-      {/* 실시간 이모지 폭탄 (파티클 오버레이 + floating 버튼) */}
+      {/* 실시간 이모지 폭탄 (항상 활성 · 파티클은 z-30으로 패널 뒤에 지나감) */}
       <EmojiRain />
 
       {/* 긴급 투표 오버레이 (새 투표 생성 순간 자동 등장) */}
@@ -247,7 +247,7 @@ export default function UserPage() {
       )}
 
       {/* 헤더 */}
-      <header className="flex items-center justify-between border-b border-white/10 bg-black/30 px-4 py-3 backdrop-blur">
+      <header className="relative z-40 flex items-center justify-between border-b border-white/10 bg-black/30 px-4 py-3 backdrop-blur">
         <div className="flex items-center gap-2">
           <Crewmate color={color} size={28} />
           <span className="font-bold">SKGT 우주선</span>
@@ -268,7 +268,7 @@ export default function UserPage() {
 
       {/* 진행 중 투표 배너 */}
       {vote && (
-        <section className="border-b border-white/10 bg-white/5 p-4 backdrop-blur">
+        <section className="relative z-40 border-b border-white/10 bg-white/5 p-4 backdrop-blur">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-bold">{vote.title}</h2>
             <span
@@ -312,7 +312,7 @@ export default function UserPage() {
 
       {/* 미니게임 배너 (룰렛: 대기/결과 안내 · 사다리: 인페이지 보드) */}
       {game && (
-        <section className="border-b border-white/10 bg-white/5 p-4 backdrop-blur">
+        <section className="relative z-40 border-b border-white/10 bg-white/5 p-4 backdrop-blur">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="font-bold">
               {game.type === "ROULETTE" ? "🎡 " : "🪜 "}
@@ -404,7 +404,7 @@ export default function UserPage() {
       </div>
 
       {/* 입력창 */}
-      <div className="flex gap-2 border-t border-white/10 bg-black/30 p-3 backdrop-blur">
+      <div className="relative z-40 flex gap-2 border-t border-white/10 bg-black/30 p-3 backdrop-blur">
         <input
           className="flex-1 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-base text-white placeholder-white/40 outline-none focus:border-cyan-300"
           placeholder="메시지 입력..."

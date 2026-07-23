@@ -169,6 +169,7 @@
 - [x] 서버(`socketHandlers.ts`): **소켓별 200ms throttle 버퍼**로 연타를 count 로 집계 → `socket.broadcast`(본인 제외) 전송, 화이트리스트·개수 클램프(≤40), disconnect 시 타이머 정리
 - [x] 클라(`EmojiRain.tsx`): floating 버튼(채팅 입력창 위) + 파티클 오버레이(CSS keyframes `emoji-rise`, 아래→위 둥둥+좌우 drift), **Optimistic**(누른 본인 즉시 스폰) + 파티클 상한 100개/스폰 30개로 성능 보호, `prefers-reduced-motion` 대응
 - [x] `page.tsx` 입장 화면에 `<EmojiRain />` 마운트
+- [x] (조정) 진행 중에도 이모지 활성 유지하되 **레이어로 분리**: 이모지 파티클은 z-30, 헤더·투표 배너·게임 배너·입력창은 `relative z-40`로 올려 이모지가 패널 **뒤로** 지나가게(가림 방지). 패널의 `backdrop-blur`로 뒤 이모지는 은은하게 블러됨
 - **검증**: `tsc --noEmit`·`next lint` 통과. **육안 확인은 사용자 몫**
 
 ### 19. 사용자 채팅방 퇴장 버튼
