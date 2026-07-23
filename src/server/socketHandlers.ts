@@ -122,6 +122,21 @@ export function registerSocketHandlers(io: IOServer) {
       ack?.(true);
     });
 
+    // ── 퇴장 (소켓 유지, 방에서만 나감) ──────────────────────────────
+    socket.on("user:leave", () => {
+      const user = store.removeUser(socket.id);
+      if (user) {
+        const sysMsg = store.addMessage({
+          nickname: "안내",
+          message: `${user.nickname} 님이 떠났습니다.`,
+          color: user.color,
+          system: true,
+        });
+        io.emit("chat:new", sysMsg);
+      }
+      io.emit("users:update", store.userCount);
+    });
+
     // ── 채팅 ──────────────────────────────
     socket.on("chat:send", ({ message }) => {
       const user = store.getUser(socket.id);

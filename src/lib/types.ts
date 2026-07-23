@@ -129,6 +129,8 @@ export interface ClientToServerEvents {
     ack?: (ok: boolean) => void
   ) => void;
   "chat:send": (payload: { message: string }) => void;
+  /** 사용자가 채팅방에서 퇴장 (소켓은 유지, 방에서만 나감) */
+  "user:leave": () => void;
   "vote:cast": (payload: { optionId: string }) => void;
   /** 이모지 폭탄 전송 (연타 시 서버가 200ms 단위로 throttle) */
   "emoji:send": (payload: { type: string; count?: number }) => void;

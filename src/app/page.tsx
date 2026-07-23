@@ -138,6 +138,13 @@ export default function UserPage() {
     setInput("");
   };
 
+  const handleExit = () => {
+    if (!confirm("채팅방에서 나갈까요?")) return;
+    getSocket().emit("user:leave");
+    setJoined(false); // 초기(닉네임/캐릭터 선택) 화면으로 복귀
+    setInput("");
+  };
+
   const handleVote = (optionId: string) => {
     // 투표 확정 여부는 서버의 vote:voted 이벤트로 처리(중복/종료 시 오작동 방지)
     getSocket().emit("vote:cast", { optionId });
@@ -245,9 +252,18 @@ export default function UserPage() {
           <Crewmate color={color} size={28} />
           <span className="font-bold">SKGT 우주선</span>
         </div>
-        <span className="rounded-full bg-white/10 px-3 py-1 text-sm">
-          🧑‍🚀 {userCount}명 탑승
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-white/10 px-3 py-1 text-sm">
+            🧑‍🚀 {userCount}명 탑승
+          </span>
+          <button
+            onClick={handleExit}
+            aria-label="채팅방 퇴장"
+            className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-sm font-semibold text-white/80 active:bg-white/15"
+          >
+            🚪 퇴장
+          </button>
+        </div>
       </header>
 
       {/* 진행 중 투표 배너 */}

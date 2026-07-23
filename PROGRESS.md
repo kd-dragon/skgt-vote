@@ -171,6 +171,11 @@
 - [x] `page.tsx` 입장 화면에 `<EmojiRain />` 마운트
 - **검증**: `tsc --noEmit`·`next lint` 통과. **육안 확인은 사용자 몫**
 
+### 19. 사용자 채팅방 퇴장 버튼
+- [x] 헤더 우측 상단 **🚪 퇴장** 버튼 → 확인창 후 초기(닉네임/캐릭터 선택) 화면 복귀(`setJoined(false)`)
+- [x] 이벤트 `user:leave`(client→server): 서버가 `removeUser` + 퇴장 안내 채팅 + 인원수 갱신(소켓은 유지, 방에서만 나감 → 재입장 시 `user:join` 재사용)
+- **검증**: `tsc --noEmit` 통과
+
 ## ✅ 배포 완료
 - [x] **실제 Lightsail 배포 수행** — GitHub Actions 자동 배포로 `https://skgt.fun` 서비스 운영 중
 
