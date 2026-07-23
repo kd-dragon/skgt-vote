@@ -7,6 +7,8 @@ import { EMOJIS } from "@/lib/emojis";
 const MAX_PARTICLES = 100; // 동시 파티클 상한 (성능 보호)
 const MAX_PER_SPAWN = 30; // 한 이벤트로 만들 최대 파티클 수
 
+const MEGA_CHANCE = 0.1; // 10번 중 1번 초대형 이모지
+
 type Particle = {
   id: number;
   emoji: string;
@@ -14,6 +16,7 @@ type Particle = {
   size: number; // px
   duration: number; // ms
   drift: number; // 좌우 이동 px
+  mega: boolean; // 초대형 여부
 };
 
 /**
@@ -35,14 +38,17 @@ export default function EmojiRain() {
       const added: Particle[] = [];
       for (let i = 0; i < make; i++) {
         const id = ++idRef.current;
-        const duration = 2400 + Math.random() * 1600;
+        const mega = Math.random() < MEGA_CHANCE; // 1% 확률로 초대형
+        const duration = mega ? 3800 + Math.random() * 1200 : 2400 + Math.random() * 1600;
         added.push({
           id,
           emoji,
-          left: 4 + Math.random() * 92,
-          size: 26 + Math.random() * 20,
+          // 초대형은 화면 중앙 부근에서 크게 떠오르도록
+          left: mega ? 30 + Math.random() * 40 : 4 + Math.random() * 92,
+          size: mega ? 160 + Math.random() * 60 : 26 + Math.random() * 20,
           duration,
-          drift: (Math.random() - 0.5) * 120,
+          drift: mega ? (Math.random() - 0.5) * 40 : (Math.random() - 0.5) * 120,
+          mega,
         });
         const t = setTimeout(() => {
           setParticles((cur) => cur.filter((x) => x.id !== id));
@@ -93,6 +99,10 @@ export default function EmojiRain() {
                 fontSize: `${p.size}px`,
                 animationDuration: `${p.duration}ms`,
                 "--drift": `${p.drift}px`,
+                filter: p.mega
+                  ? "drop-shadow(0 0 18px rgba(255,215,0,0.9))"
+                  : undefined,
+                zIndex: p.mega ? 1 : undefined,
               } as React.CSSProperties
             }
           >
