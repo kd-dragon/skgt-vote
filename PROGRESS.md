@@ -125,8 +125,51 @@
 ### 13. 동률 처리 + 동점 재투표
 - [x] `ResultReveal.tsx`: 왕관 조건을 `idx===0`→`count===maxCount`로 수정 → 동점자 전원 👑 (VoteResult는 이미 동률 지원)
 - [x] `AdminConsole.tsx`: 종료 투표에서 최다 득표 공유 후보(2개↑) 계산 → **👑 동점 재투표** 버튼을 '새 투표 준비' 옆에 노출
-- [x] 동점 재투표는 별도 서버 이벤트 없이 기존 `admin:vote:create` 재사용(동점 후보 label 만 옵션으로, 제목 `~ (동점 재투표)`) → 긴급 투표 오버레이도 그대로 동작, 직전 결과는 지난 결과로 보존
+- [x] 동점 재투표는 별도 서버 이벤트 없이 기존 `admin:vote:create` 재사용(동점 후보 label 만 옵션으로, 제목 `~ (재투표)`) → 긴급 투표 오버레이도 그대로 동작, 직전 결과는 지난 결과로 보존
 - **검증**: `tsc --noEmit` 통과. **육안 확인은 사용자 몫**
+
+### 14. 오래된 채팅 자동 정리 (메모리 보호)
+- [x] `store.pruneMessages()` 신규: TTL(기본 60분) 초과 메시지를 앞에서부터 제거 + 기존 개수 상한(200개) 하드 실링 유지
+- [x] `addMessage`/`snapshot` 에서 정리 호출 → 신규 접속자에게도 만료 채팅 미노출, 유휴 시엔 최대 200개(수십 KB)만 상주
+- [x] TTL 은 `CHAT_TTL_MIN` 환경변수로 조정(미설정 시 60분), `.env.example`·`deploy/env.production.example` 문서화
+- **검증**: `tsc --noEmit` 통과
+
+### 15. QA 버그 수정 (한글 IME 중복 입력 · 신규 접속 스크롤)
+- [x] 채팅/닉네임 입력: `onKeyDown`에 `e.nativeEvent.isComposing` 가드 → 한글 조합 중 Enter 시 마지막 글자 중복 입력 방지
+- [x] 신규 접속 시 채팅창이 맨 위에 머물던 문제: `joined` 전환 effect 추가로 입장 즉시 최신(맨 아래)으로 점프(`behavior:auto`)
+- **검증**: `tsc --noEmit` 통과
+
+### 16. 미니게임 추가: 룰렛 + 사다리타기 (관리자 실행·전원 관전, 어몽어스 테마)
+- [x] 타입(`types.ts`): `Game`(RouletteGame|LadderGame) + 이벤트 `admin:game:create/run/reset`, `game:update`, 스냅샷에 `currentGame`
+- [x] 서버(`store.ts`): `createGame`/`runGame`(서버 권위 랜덤)/`resetGame`, 사다리 가로줄 랜덤 생성·경로 계산, `hardReset`에 게임 포함
+- [x] 서버(`socketHandlers.ts`): slug 인증 + 생성/실행/초기화 핸들러, 생성 시 안내 채팅
+- [x] 룰렛 연출(`RouletteReveal.tsx`): 크루원 색 세그먼트 원판이 회전(ease-out 4.2s)해 당첨 정지 → 👑+색종이(기존 CSS 재활용)
+- [x] 사다리 연출(`LadderReveal.tsx`): 크루원 토큰들이 사다리를 rAF로 동시 하강 → 도착 결과 강조 + 매핑 목록
+- [x] 등장 연출: `EmergencyMeeting`을 `heading/subheading` prop으로 일반화해 게임 오픈 시 "🎡 룰렛 게임! / 🪜 사다리타기!" 재활용
+- [x] 사용자 화면(`page.tsx`): `game:update` 구독, OPEN 대기 배너 + 새 게임 등장 오버레이 + OPEN→RESULT 전환 시 전체화면 결과 연출('결과 다시 보기' 포함), 재접속 시 연출 재생 없이 상태만 복원
+- [x] 관리자(`AdminConsole.tsx`): 모드 탭(투표/룰렛/사다리) + 각 생성폼/실행/초기화, 사다리는 참가자·결과 2열(개수 동일 강제)
+- **검증**: `tsc --noEmit`·`next lint` 통과 (프로덕션 `next build`는 로컬 dev 서버의 `.next` 파일 락으로 미실행 — 코드 무관). **애니메이션 육안 확인은 사용자 몫**
+
+### 17. 사다리 게임 재설계 (단계 진행형: 결과 가림 → 참가자 입력 → 하나씩 공개)
+- [x] 타입: `LadderGame`에 `revealed[]` 추가, `GameStatus`에 `PLAYING` 추가. 생성은 **결과만** 입력, 참가자는 이후 입력
+- [x] 서버(`store.ts`): `createGame`(사다리=결과-only, 참가자 빈칸), `setLadderPlayers`/`startLadder`(매핑 확정·PLAYING)/`revealLadder`(index 누적), `runGame`은 룰렛 전용으로 축소
+- [x] 서버(`socketHandlers.ts`): `admin:game:ladder:players/start/reveal` 핸들러(slug 인증), 시작 시 안내 채팅
+- [x] 사용자 보드(`LadderBoard.tsx` 신규, 인페이지): 사다리 길(세로줄+가로대) 노출 + **하단 결과 ❓ 가림**, 관리자가 공개할 때마다 해당 크루원 토큰이 rAF로 하강→도착 결과칸 공개. 재접속 시 이미 공개된 참가자는 애니 없이 즉시 표시. 기존 전체화면 `LadderReveal.tsx` 제거
+- [x] 관리자(`AdminConsole.tsx`): 사다리 생성=결과만 / OPEN=참가자 입력칸+‘보드 반영’+‘게임 시작’ / PLAYING=참가자별 ‘하나씩 공개’ 버튼(공개 시 도착 결과 표기)
+- [x] `page.tsx`: 사다리는 RESULT 전체화면 대신 배너에 `LadderBoard` 상시 노출(공개 n/N 안내), 룰렛은 기존 RESULT 오버레이 유지
+- [x] (조정) 가로대 개수 2배(`rows = max(16, cols*4)`) / 결과는 **항상 표시**하고 대신 **사다리 중간에 네모난 가림막**을 토큰·가로대 위에 덮어 경로 예측 방지(도착 시 결과칸 강조)
+- [x] (조정) 가림막은 **대기(OPEN) 중에만** 표시 → 하나씩 공개(PLAYING) 시작하면 치워서 전체 경로 하강이 보임
+- [x] (조정) 룰렛 회전을 CSS 트랜지션 → **rAF 감속 이징**(5제곱 ease-out)으로 변경: 마찰 감속처럼 처음 빠르게 → 부드럽게 느려지며 정지(회전 10s·8바퀴)
+- [x] (조정) 관리자 탭(투표/룰렛/사다리) 이동 시 진행 중 투표·게임이 있으면 **확인창 → 종료**(동시 진행 방지): `handleTabChange` 에서 `admin:vote:reset`/`admin:game:reset` emit
+- **검증**: `tsc --noEmit`·`next lint` 통과. **애니메이션 육안 확인은 사용자 몫**
+
+### 18. 실시간 이모지 폭탄 (Emoji Rain)
+- [x] 공용 상수 `src/lib/emojis.ts`(❤️🔥🎉👏 + `isValidEmoji` 화이트리스트)
+- [x] 타입: client→server `emoji:send {type,count?}` / server→client `emoji:burst {type,count}`
+- [x] 서버(`socketHandlers.ts`): **소켓별 200ms throttle 버퍼**로 연타를 count 로 집계 → `socket.broadcast`(본인 제외) 전송, 화이트리스트·개수 클램프(≤40), disconnect 시 타이머 정리
+- [x] 클라(`EmojiRain.tsx`): floating 버튼(채팅 입력창 위) + 파티클 오버레이(CSS keyframes `emoji-rise`, 아래→위 둥둥+좌우 drift), **Optimistic**(누른 본인 즉시 스폰) + 파티클 상한 100개/스폰 30개로 성능 보호, `prefers-reduced-motion` 대응
+- [x] `page.tsx` 입장 화면에 `<EmojiRain />` 마운트
+- **검증**: `tsc --noEmit`·`next lint` 통과. **육안 확인은 사용자 몫**
 
 ## ✅ 배포 완료
 - [x] **실제 Lightsail 배포 수행** — GitHub Actions 자동 배포로 `https://skgt.fun` 서비스 운영 중

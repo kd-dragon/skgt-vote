@@ -156,6 +156,21 @@ body {
 @keyframes em-spin { to { transform: rotate(360deg); } }
 .em-spin { animation: em-spin 9s linear infinite; }
 
+/* ── 이모지 폭탄 (아래에서 위로 둥둥 떠오르며 사라짐) ────────────────────────── */
+@keyframes emoji-rise {
+  0% { transform: translate(0, 0) scale(0.7); opacity: 0; }
+  12% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translate(var(--drift, 0px), -85vh) scale(1.15); opacity: 0; }
+}
+.emoji-rise {
+  animation-name: emoji-rise;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+  will-change: transform, opacity;
+  user-select: none;
+}
+
 /* 접근성: 모션 최소화 선호 시 애니메이션 완화 */
 @media (prefers-reduced-motion: reduce) {
   .reveal-fade,
@@ -167,7 +182,8 @@ body {
   .em-flash,
   .em-crew-in,
   .em-text-in,
-  .em-spin {
+  .em-spin,
+  .emoji-rise {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }

@@ -5,7 +5,11 @@ import type {
   Vote,
 } from "@/lib/types";
 import { DEFAULT_COLOR_ID, isValidColorId } from "@/lib/crewmates";
+import { isValidEmoji } from "@/lib/emojis";
 import { store } from "./store";
+
+const EMOJI_THROTTLE_MS = 200; // 이모지 폭탄 throttle 창(연타 집계 단위)
+const EMOJI_MAX_PER_FLUSH = 40; // 한 번에 브로드캐스트할 최대 개수(성능 보호)
 
 type IOServer = Server<ClientToServerEvents, ServerToClientEvents>;
 type IOSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -62,6 +66,30 @@ export function registerSocketHandlers(io: IOServer) {
     // 접속 즉시 현재 상태 스냅샷 전달 (기본은 사용자용 = 진행 중 집계 마스킹)
     socket.emit("state:sync", userSnapshot());
     io.emit("users:update", store.userCount);
+
+    // ── 이모지 폭탄: 소켓별 200ms throttle 버퍼 (연타를 모아 count 로 브로드캐스트) ──
+    let emojiPending: Record<string, number> = {};
+    let emojiTimer: ReturnType<typeof setTimeout> | null = null;
+    const flushEmoji = () => {
+      const pending = emojiPending;
+      emojiPending = {};
+      emojiTimer = null;
+      for (const [type, count] of Object.entries(pending)) {
+        if (count > 0) {
+          // 본인은 Optimistic UI 로 이미 표시 → 나머지에게만 전송
+          socket.broadcast.emit("emoji:burst", {
+            type,
+            count: Math.min(EMOJI_MAX_PER_FLUSH, count),
+          });
+        }
+      }
+    };
+    socket.on("emoji:send", ({ type, count }) => {
+      if (!isValidEmoji(type)) return; // 화이트리스트 외 무시
+      const n = Math.min(EMOJI_MAX_PER_FLUSH, Math.max(1, Math.floor(count ?? 1)));
+      emojiPending[type] = (emojiPending[type] ?? 0) + n;
+      if (!emojiTimer) emojiTimer = setTimeout(flushEmoji, EMOJI_THROTTLE_MS);
+    });
 
     // ── 관리자 room 참여 (실시간 집계 수신) ──────────────────────────────
     socket.on("admin:hello", ({ adminKey }) => {
@@ -204,8 +232,104 @@ export function registerSocketHandlers(io: IOServer) {
       io.emit("chat:clear"); // 모든 사용자 화면의 채팅창 비움
     });
 
+    // ── 관리자: 미니게임 생성 & 오픈 ──────────────────────────────
+    socket.on("admin:game:create", ({ type, title, items, prizes, adminKey }) => {
+      if (!isAdmin(adminKey)) {
+        socket.emit("error:msg", "관리자 권한이 없습니다.");
+        return;
+      }
+      const game = store.createGame(type, title, items, prizes);
+      if (!game) {
+        socket.emit(
+          "error:msg",
+          type === "LADDER"
+            ? "제목과 결과(2개 이상)를 입력하세요."
+            : "제목과 항목(2개 이상)을 입력하세요."
+        );
+        return;
+      }
+      const label = type === "ROULETTE" ? "🎡 룰렛" : "🪜 사다리타기";
+      const sysMsg = store.addMessage({
+        nickname: "안내",
+        message: `${label} 게임이 열렸습니다: ${game.title}`,
+        system: true,
+      });
+      io.emit("chat:new", sysMsg);
+      io.emit("game:update", game);
+    });
+
+    // ── 관리자: 게임 실행 (결과 확정 후 전원 브로드캐스트) ──────────────────────────────
+    socket.on("admin:game:run", ({ adminKey }) => {
+      if (!isAdmin(adminKey)) {
+        socket.emit("error:msg", "관리자 권한이 없습니다.");
+        return;
+      }
+      const game = store.runGame();
+      if (!game) {
+        socket.emit("error:msg", "실행할 게임이 없습니다.");
+        return;
+      }
+      io.emit("game:update", game); // 전원 동시에 결과 연출
+    });
+
+    // ── 관리자: 게임 초기화 ──────────────────────────────
+    socket.on("admin:game:reset", ({ adminKey }) => {
+      if (!isAdmin(adminKey)) {
+        socket.emit("error:msg", "관리자 권한이 없습니다.");
+        return;
+      }
+      store.resetGame();
+      io.emit("game:update", null);
+    });
+
+    // ── 관리자: 사다리 참가자 입력 ──────────────────────────────
+    socket.on("admin:game:ladder:players", ({ players, adminKey }) => {
+      if (!isAdmin(adminKey)) {
+        socket.emit("error:msg", "관리자 권한이 없습니다.");
+        return;
+      }
+      const game = store.setLadderPlayers(players || []);
+      if (!game) {
+        socket.emit("error:msg", "참가자 인원이 결과 개수와 맞지 않습니다.");
+        return;
+      }
+      io.emit("game:update", game);
+    });
+
+    // ── 관리자: 사다리 게임 시작 ──────────────────────────────
+    socket.on("admin:game:ladder:start", ({ adminKey }) => {
+      if (!isAdmin(adminKey)) {
+        socket.emit("error:msg", "관리자 권한이 없습니다.");
+        return;
+      }
+      const game = store.startLadder();
+      if (!game) {
+        socket.emit("error:msg", "참가자를 모두 입력한 뒤 시작할 수 있습니다.");
+        return;
+      }
+      const sysMsg = store.addMessage({
+        nickname: "안내",
+        message: `🪜 사다리타기 시작! 하나씩 결과를 공개합니다.`,
+        system: true,
+      });
+      io.emit("chat:new", sysMsg);
+      io.emit("game:update", game);
+    });
+
+    // ── 관리자: 사다리 참가자 한 명 공개 ──────────────────────────────
+    socket.on("admin:game:ladder:reveal", ({ index, adminKey }) => {
+      if (!isAdmin(adminKey)) {
+        socket.emit("error:msg", "관리자 권한이 없습니다.");
+        return;
+      }
+      const game = store.revealLadder(index);
+      if (!game) return;
+      io.emit("game:update", game);
+    });
+
     // ── 연결 해제 ──────────────────────────────
     socket.on("disconnect", () => {
+      if (emojiTimer) clearTimeout(emojiTimer); // 이모지 throttle 타이머 정리
       const user = store.removeUser(socket.id);
       if (user) {
         const sysMsg = store.addMessage({

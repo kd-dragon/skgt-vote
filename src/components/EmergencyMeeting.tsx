@@ -13,10 +13,14 @@ const AUTO_CLOSE_MS = 2900; // 연출 후 자동 종료 (투표 화면으로 복
 export default function EmergencyMeeting({
   title,
   color,
+  heading = "🚨 긴급 투표! 🚨",
+  subheading = "Emergency Meeting",
   onClose,
 }: {
   title: string;
   color?: string; // 난입하는 크루원 색상 (보통 접속자 본인 색)
+  heading?: string; // 상단 큰 문구 (투표/게임 등 상황별)
+  subheading?: string; // 하단 영문 부제
   onClose: () => void;
 }) {
   // 일정 시간 후 자동 종료
@@ -60,10 +64,10 @@ export default function EmergencyMeeting({
 
         <div className="em-text-in">
           <p className="text-4xl font-black leading-tight tracking-tight text-red-500 drop-shadow-[0_2px_0_rgba(0,0,0,0.8)] sm:text-5xl">
-            🚨 긴급 투표! 🚨
+            {heading}
           </p>
           <p className="mt-1 text-sm font-bold uppercase tracking-[0.3em] text-white/60">
-            Emergency Meeting
+            {subheading}
           </p>
 
           <div className="mx-auto mt-5 max-w-xs rounded-2xl border border-white/15 bg-white/10 px-5 py-3 backdrop-blur">

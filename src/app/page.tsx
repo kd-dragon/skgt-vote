@@ -4,10 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { getSocket } from "@/lib/socket";
 import { getClientId, getSavedColor, saveColor } from "@/lib/clientId";
 import { CREWMATE_COLORS, DEFAULT_COLOR_ID, getCrewmateColor } from "@/lib/crewmates";
-import type { ChatMessage, Vote } from "@/lib/types";
+import type { ChatMessage, Game, Vote } from "@/lib/types";
 import VoteResult from "@/components/VoteResult";
 import ResultReveal from "@/components/ResultReveal";
 import EmergencyMeeting from "@/components/EmergencyMeeting";
+import RouletteReveal from "@/components/RouletteReveal";
+import LadderBoard from "@/components/LadderBoard";
+import EmojiRain from "@/components/EmojiRain";
 import Crewmate from "@/components/Crewmate";
 
 export default function UserPage() {
@@ -22,9 +25,13 @@ export default function UserPage() {
   const [input, setInput] = useState("");
   const [revealVote, setRevealVote] = useState<Vote | null>(null); // 발표 오버레이 대상
   const [meetingVote, setMeetingVote] = useState<Vote | null>(null); // 긴급 투표 오버레이 대상
+  const [game, setGame] = useState<Game | null>(null); // 진행 중 미니게임
+  const [gameEntrance, setGameEntrance] = useState<Game | null>(null); // 게임 등장 오버레이 대상
+  const [gameReveal, setGameReveal] = useState<Game | null>(null); // 게임 결과 연출 대상
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const voteRef = useRef<Vote | null>(null); // OPEN→CLOSED 전환 감지용
+  const gameRef = useRef<Game | null>(null); // 게임 상태 전환 감지용
 
   // 저장된 크루원 색상 복원
   useEffect(() => {
@@ -42,6 +49,9 @@ export default function UserPage() {
       voteRef.current = snap.currentVote;
       setVote(snap.currentVote);
       setPrevVote(snap.previousVote);
+      // 게임 상태 복원 (재접속/새로고침 시 오버레이 재생 없이 현재 상태만 반영)
+      gameRef.current = snap.currentGame;
+      setGame(snap.currentGame);
     });
     socket.on("chat:new", (msg) => setMessages((prev) => [...prev, msg]));
     socket.on("chat:clear", () => setMessages([])); // 관리자가 채팅 기록 초기화
@@ -61,6 +71,21 @@ export default function UserPage() {
       }
       setVote(v);
     });
+    // ── 미니게임 상태 갱신 ──────────────────────────────
+    socket.on("game:update", (g) => {
+      const prev = gameRef.current;
+      gameRef.current = g;
+      setGame(g);
+      // 새 게임 오픈(새 ID & OPEN) → 어몽어스 등장 연출
+      if (g && g.status === "OPEN" && g.id !== prev?.id) {
+        setGameEntrance(g);
+      }
+      // OPEN → RESULT 전환(같은 게임 실행) → 결과 연출 오버레이
+      if (g && g.status === "RESULT" && prev?.id === g.id && prev.status === "OPEN") {
+        setGameEntrance(null); // 등장 오버레이 잔류 방지
+        setGameReveal(g);
+      }
+    });
     // 지난 투표 결과 갱신
     socket.on("vote:previous", (v) => setPrevVote(v));
     // 서버 권위 값: 현재 투표에 이미 참여했는지 (재접속/새로고침 복원)
@@ -73,16 +98,23 @@ export default function UserPage() {
       socket.off("chat:clear");
       socket.off("users:update");
       socket.off("vote:update");
+      socket.off("game:update");
       socket.off("vote:previous");
       socket.off("vote:voted");
       socket.off("error:msg");
     };
   }, []);
 
-  // 새 메시지 시 자동 스크롤
+  // 새 메시지 시 자동 스크롤 (부드럽게)
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // 입장 직후: 채팅 DOM이 처음 렌더되므로 즉시 최신(맨 아래)으로 점프
+  useEffect(() => {
+    if (!joined) return;
+    chatEndRef.current?.scrollIntoView({ behavior: "auto" });
+  }, [joined]);
 
   const handleJoin = () => {
     const name = nickname.trim();
@@ -133,7 +165,11 @@ export default function UserPage() {
             value={nickname}
             maxLength={20}
             onChange={(e) => setNickname(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleJoin()}
+            onKeyDown={(e) => {
+              // 한글 등 IME 조합 중 Enter는 무시 (마지막 글자 중복 방지)
+              if (e.nativeEvent.isComposing) return;
+              if (e.key === "Enter") handleJoin();
+            }}
           />
 
           {/* 캐릭터(색상) 선택 그리드 */}
@@ -170,6 +206,9 @@ export default function UserPage() {
   // ── 채팅 + 투표 화면 ──────────────────────────────
   return (
     <main className="space-bg flex h-[100dvh] flex-col text-white">
+      {/* 실시간 이모지 폭탄 (파티클 오버레이 + floating 버튼) */}
+      <EmojiRain />
+
       {/* 긴급 투표 오버레이 (새 투표 생성 순간 자동 등장) */}
       {meetingVote && (
         <EmergencyMeeting
@@ -182,6 +221,22 @@ export default function UserPage() {
       {/* 결과 발표 오버레이 (투표 종료 순간 자동 등장) */}
       {revealVote && (
         <ResultReveal vote={revealVote} onClose={() => setRevealVote(null)} />
+      )}
+
+      {/* 게임 등장 오버레이 (새 게임 오픈 순간, 결과 연출 중이 아닐 때만) */}
+      {gameEntrance && !gameReveal && (
+        <EmergencyMeeting
+          title={gameEntrance.title}
+          color={color}
+          heading={gameEntrance.type === "ROULETTE" ? "🎡 룰렛 게임!" : "🪜 사다리타기!"}
+          subheading="Mini Game"
+          onClose={() => setGameEntrance(null)}
+        />
+      )}
+
+      {/* 룰렛 결과 연출 오버레이 (관리자 실행 순간 자동 등장) */}
+      {gameReveal?.type === "ROULETTE" && (
+        <RouletteReveal game={gameReveal} onClose={() => setGameReveal(null)} />
       )}
 
       {/* 헤더 */}
@@ -239,6 +294,57 @@ export default function UserPage() {
         </section>
       )}
 
+      {/* 미니게임 배너 (룰렛: 대기/결과 안내 · 사다리: 인페이지 보드) */}
+      {game && (
+        <section className="border-b border-white/10 bg-white/5 p-4 backdrop-blur">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="font-bold">
+              {game.type === "ROULETTE" ? "🎡 " : "🪜 "}
+              {game.title}
+            </h2>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                game.status === "OPEN"
+                  ? "bg-amber-400/20 text-amber-300"
+                  : "bg-white/10 text-white/60"
+              }`}
+            >
+              {game.status === "OPEN"
+                ? "대기 중"
+                : game.status === "PLAYING"
+                  ? "진행 중"
+                  : "결과 발표"}
+            </span>
+          </div>
+
+          {game.type === "LADDER" ? (
+            // 사다리: 보드를 그대로 노출 (하단 결과는 가려짐, 관리자 공개 시 하나씩 하강)
+            <div className="rounded-xl bg-black/20 p-2">
+              <LadderBoard game={game} />
+              <p className="mt-1 text-center text-xs text-white/40">
+                {game.status === "OPEN"
+                  ? "관리자가 참가자를 입력하고 있어요"
+                  : `공개 ${game.revealed.length}/${game.players.length} · 관리자가 하나씩 공개합니다`}
+              </p>
+            </div>
+          ) : game.status === "OPEN" ? (
+            <div className="rounded-xl bg-black/20 px-3 py-3 text-center">
+              <p className="text-sm text-white/70">
+                {game.options.length}개 항목으로 룰렛 대기 중
+              </p>
+              <p className="mt-1 text-xs text-white/40">관리자가 곧 시작합니다 🚀</p>
+            </div>
+          ) : (
+            <button
+              onClick={() => setGameReveal(game)}
+              className="w-full rounded-xl bg-white/10 py-2.5 text-sm font-semibold text-amber-300 active:bg-white/20"
+            >
+              🎬 결과 다시 보기
+            </button>
+          )}
+        </section>
+      )}
+
       {/* 지난 투표 결과 (사용자 조회용, 간단히 펼쳐보기) */}
       {prevVote && (
         <section className="border-b border-white/10 bg-black/20 px-4 py-3">
@@ -289,7 +395,11 @@ export default function UserPage() {
           value={input}
           maxLength={300}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
+          onKeyDown={(e) => {
+            // 한글 등 IME 조합 중 Enter는 무시 (마지막 글자 중복 방지)
+            if (e.nativeEvent.isComposing) return;
+            if (e.key === "Enter") handleSend();
+          }}
         />
         <button
           onClick={handleSend}
